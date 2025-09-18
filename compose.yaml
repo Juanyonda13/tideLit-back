@@ -1,0 +1,38 @@
+
+services:
+  # Base de datos MySQL
+  database:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootpassword}
+      MYSQL_DATABASE: ${DB_NAME:-tideLit_db}
+      MYSQL_USER: ${DB_USER:-laravel}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-LaravelROOT2024!}
+    ports:
+      - "3308:3306"
+    volumes:
+      - database_data:/var/lib/mysql:rw
+    command: --default-authentication-plugin=mysql_native_password
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+  # Aplicación PHP/Symfony
+  app:
+    build: .
+    ports:
+      - "9000:8000"
+    volumes:
+      - .:/var/www/html
+      - /var/www/html/vendor
+    environment:
+      - APP_ENV=dev
+      - DATABASE_URL=mysql://${DB_USER:-laravel}:${DB_PASSWORD:-LaravelROOT2024!}@database:3306/${DB_NAME:-tideLit_db}?serverVersion=8.0.32&charset=utf8mb4
+    depends_on:
+      database:
+        condition: service_healthy
+    command: php -S 0.0.0.0:8000 -t public
+
+volumes:
+  database_data:

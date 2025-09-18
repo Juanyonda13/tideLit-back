@@ -1,0 +1,5 @@
+services:
+  app:
+    environment:
+      - APP_ENV=dev
+      - DATABASE_URL=mysql://laravel:LaravelROOT2024!@database:3306/tideLit_db?serverVersion=8.0.32&charset=utf8mb4

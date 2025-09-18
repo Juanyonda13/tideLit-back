@@ -1,0 +1,52 @@
+# Dependencias
+vendor/
+node_modules/
+
+# Archivos de Symfony
+var/cache/
+var/log/
+var/sessions/
+var/
+
+# Archivos de configuración local
+.env.local
+.env.local.php
+.env.*.local
+
+# Archivos de IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Archivos del sistema
+.DS_Store
+Thumbs.db
+
+# Archivos de Git
+.git/
+.gitignore
+
+# Archivos de Docker
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# Archivos de documentación
+README.md
+*.md
+
+# Archivos de testing
+tests/
+phpunit.xml
+.phpunit.result.cache
+
+# Archivos temporales
+*.tmp
+*.temp
+*.log
+
+# Archivos de backup
+*.bak
+*.backup
