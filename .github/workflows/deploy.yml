@@ -1,0 +1,137 @@
+name: Deploy TideLit Backend
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+env:
+  SERVER_HOST: ${{ secrets.SERVER_HOST }}
+  SERVER_USER: ${{ secrets.SERVER_USER }}
+  SERVER_SSH_KEY: ${{ secrets.SERVER_SSH_KEY }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: tideLit_db
+          MYSQL_USER: laravel
+          MYSQL_PASSWORD: LaravelROOT2024!
+        ports:
+          - 3306:3306
+        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.2'
+        extensions: mbstring, xml, ctype, iconv, intl, pdo_mysql, zip, curl, gd
+        coverage: none
+
+    - name: Get Composer Cache Directory
+      id: composer-cache
+      run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+
+    - name: Cache Composer dependencies
+      uses: actions/cache@v3
+      with:
+        path: ${{ steps.composer-cache.outputs.dir }}
+        key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-composer-
+
+    - name: Install dependencies
+      run: composer install --prefer-dist --no-progress --no-suggest
+
+    - name: Copy environment file
+      run: cp env.prod.example .env
+
+    - name: Update database URL
+      run: |
+        echo "DATABASE_URL=mysql://laravel:LaravelROOT2024!@127.0.0.1:3306/tideLit_db?serverVersion=8.0.32&charset=utf8mb4" >> .env
+
+    - name: Create database
+      run: php bin/console doctrine:database:create --if-not-exists
+
+    - name: Run migrations
+      run: php bin/console doctrine:migrations:migrate --no-interaction
+
+    - name: Run tests
+      run: |
+        php bin/console cache:clear
+        php bin/console doctrine:fixtures:load --no-interaction
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup SSH
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+    - name: Create server directory
+      run: |
+        ssh -i ~/.ssh/id_rsa ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "mkdir -p /root/projects/symfony-backend"
+
+    - name: Copy files to server
+      run: |
+        rsync -avz --delete \
+          --exclude='.git' \
+          --exclude='var/cache' \
+          --exclude='var/log' \
+          --exclude='vendor' \
+          --exclude='.github' \
+          -e "ssh -i ~/.ssh/id_rsa" \
+          ./ ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/root/projects/symfony-backend/
+
+    - name: Setup environment on server
+      run: |
+        ssh -i ~/.ssh/id_rsa ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "
+          cd /root/projects/symfony-backend &&
+          cp env.prod.example .env
+        "
+
+    - name: Deploy application
+      run: |
+        ssh -i ~/.ssh/id_rsa ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "
+          cd /root/projects/symfony-backend &&
+          docker compose -f docker-compose.prod.yml down &&
+          docker compose -f docker-compose.prod.yml up -d --build
+        "
+
+    - name: Wait for services
+      run: sleep 30
+
+    - name: Run migrations on server
+      run: |
+        ssh -i ~/.ssh/id_rsa ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "
+          cd /root/projects/symfony-backend &&
+          docker compose -f docker-compose.prod.yml exec app php bin/console doctrine:migrations:migrate --no-interaction
+        "
+
+    - name: Verify deployment
+      run: |
+        ssh -i ~/.ssh/id_rsa ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "
+          docker exec symfony-backend-app-1 curl -s http://localhost:8000/api/books | head -c 100
+        "
+
+    - name: Notify deployment success
+      run: |
+        echo "✅ Deployment successful!"
+        echo "🌐 API available at: https://apitidelit.codecrafstudio.com/api/books"

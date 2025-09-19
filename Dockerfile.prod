@@ -1,0 +1,46 @@
+FROM php:8.2-fpm
+
+# Instalar dependencias del sistema
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    libpng-dev \
+    libonig-dev \
+    libxml2-dev \
+    libzip-dev \
+    zip \
+    unzip \
+    libpq-dev \
+    && docker-php-ext-install pdo_mysql pdo_pgsql mbstring exif pcntl bcmath gd zip
+
+# Instalar Composer
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
+# Establecer directorio de trabajo
+WORKDIR /var/www/html
+
+# Copiar archivos de dependencias
+COPY composer.json composer.lock ./
+
+# Instalar dependencias de PHP (incluyendo dev para fixtures)
+RUN composer install --optimize-autoloader --no-interaction --no-scripts
+
+# Copiar código de la aplicación
+COPY . .
+
+# Ejecutar scripts de Symfony después de copiar el código
+RUN composer run-script post-install-cmd
+
+# Crear directorios necesarios y establecer permisos
+RUN mkdir -p var/cache var/log var/sessions \
+    && chown -R www-data:www-data var \
+    && chmod -R 755 var
+
+# Limpiar caché de apt
+RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Exponer puerto
+EXPOSE 8000
+
+# Comando por defecto
+CMD ["php", "-S", "0.0.0.0:8000", "-t", "public"]

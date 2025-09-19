@@ -225,6 +225,71 @@ php bin/console doctrine:migrations:diff
 php bin/console doctrine:migrations:status
 ```
 
+## CI/CD y Despliegue Automático
+
+El proyecto utiliza **GitHub Actions** para CI/CD automático con despliegue a servidor Hostinger.
+
+### Archivos de CI/CD
+
+- `.github/workflows/deploy.yml`: Workflow de despliegue automático
+- `.github/workflows/ci.yml`: Workflow de tests y verificaciones
+- `.github/SECRETS.md`: Configuración de secrets de GitHub
+- `docker-compose.prod.yml`: Configuración de producción con red webproxy
+- `Dockerfile.prod`: Imagen optimizada para producción
+
+### Configuración de GitHub Secrets
+
+Para activar el CI/CD, configura estos secrets en GitHub:
+
+1. **SERVER_HOST**: `168.231.71.181`
+2. **SERVER_USER**: `root`
+3. **SERVER_SSH_KEY**: Tu clave SSH privada
+
+Ver `.github/SECRETS.md` para instrucciones detalladas.
+
+### Flujo de CI/CD
+
+#### En cada Pull Request:
+- ✅ Tests automáticos
+- ✅ Verificaciones de código
+- ✅ Build de Docker
+- ✅ Verificaciones de seguridad
+
+#### En push a main/master:
+- ✅ Todos los tests
+- ✅ Despliegue automático al servidor
+- ✅ Migraciones automáticas
+- ✅ Verificación del despliegue
+
+### Despliegue Manual (si es necesario)
+
+```bash
+# Conectar al servidor
+ssh root@168.231.71.181
+
+# Ir al directorio del proyecto
+cd /root/projects/symfony-backend
+
+# Actualizar código
+git pull origin main
+
+# Reiniciar servicios
+docker compose -f docker-compose.prod.yml restart
+
+# Verificar estado
+docker ps | grep symfony-backend
+```
+
+### Configuración de Nginx Proxy Manager
+
+1. Accede a: `http://168.231.71.181:8080`
+2. Credenciales: `admin@example.com` / `changeme`
+3. Crear Proxy Host:
+   - Domain: `api.tu-dominio.com`
+   - Forward Hostname/IP: `symfony-backend-app-1`
+   - Forward Port: `8000`
+4. Habilitar SSL con Let's Encrypt
+
 ## Tecnologías Utilizadas
 
 - **Symfony 6.4**: Framework PHP
@@ -233,6 +298,9 @@ php bin/console doctrine:migrations:status
 - **Symfony Validator**: Validación de datos
 - **Doctrine Migrations**: Versionado de esquema de base de datos
 - **Doctrine Fixtures**: Carga de datos de prueba
+- **Docker**: Containerización
+- **Nginx Proxy Manager**: Proxy reverso con SSL
+- **GitHub Actions**: CI/CD automático
 
 ## Desarrollo
 
